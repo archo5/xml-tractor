@@ -1,0 +1,294 @@
+
+/*
+	XML Tractor [v1.0]
+	- goes through all that shit so you don't have to
+	Copyright © 2012 Arvîds Kokins
+	More info on http://code.google.com/p/xml-tractor/
+*/
+
+#include <string.h>
+
+#include "xmltractor.h"
+
+
+
+#define WHITESPACE " \t\n\r"
+
+
+/*		S t r i n g   h a n d l i n g		*/
+
+void xt_skip_ws( char** data )
+{
+	while( **data == ' ' || **data == '\t' || **data == '\n' || **data == '\r' )
+		(*data)++;
+}
+
+int xt_skip_until( char** data, char* what )
+{
+	for(;;)
+	{
+		char* wsp = what;
+		while( *wsp && *wsp != **data )
+			wsp++;
+
+		if( *wsp )
+			return 1;
+		else
+		{
+			(*data)++;
+			if( !**data )
+				return 0;
+		}
+	}
+}
+
+int xt_skip_string( char** data )
+{
+	char* S = *data;
+	while( *S )
+	{
+		if( *S == '\"' )
+		{
+			/* backtrack for backslashes */
+			int bs = 0;
+			char* T = S;
+			while( T > *data && *(T - 1) == '\\' )
+			{
+				bs++;
+				T--;
+			}
+
+			if( bs % 2 == 0 )
+			{
+				*data = S;
+				return 1;
+			}
+		}
+		S++;
+	}
+	return 0;
+}
+
+void xt_skip_hint( char** data )
+{
+	if( **data == '<' && (*data)[ 1 ] == '?' )
+	{
+		*data += 2;
+		while( *(*data-1) != '?' || **data != '>' )
+			(*data)++;
+		(*data)++;
+	}
+}
+
+
+/*		N o d e		*/
+
+xt_Node* xt_create_node()
+{
+	xt_Node* node = (xt_Node*) xt_alloc( sizeof( xt_Node ) );
+	node->parent = NULL;
+	node->firstchild = NULL;
+	node->sibling = NULL;
+	node->numchildren = 0;
+	node->header = NULL;
+	node->content = NULL;
+	node->name = NULL;
+	node->attribs = NULL;
+	node->szheader = 0;
+	node->szcontent = 0;
+	node->szname = 0;
+	node->numattribs = 0;
+	return node;
+}
+
+void xt_destroy_node( xt_Node* root )
+{
+	if( root->firstchild ) xt_destroy_node( root->firstchild );
+	if( root->sibling ) xt_destroy_node( root->sibling );
+
+	if( root->attribs )	xt_free( root->attribs );
+	xt_free( root );
+}
+
+void xt_node_add_attrib( xt_Node* node, xt_Attrib* attrib )
+{
+	if( node->attribs )
+	{
+		xt_Attrib* attrs = (xt_Attrib*) xt_alloc( sizeof( xt_Attrib ) * ( node->numattribs + 1 ) );
+		memcpy( attrs, node->attribs, sizeof( xt_Attrib ) * node->numattribs );
+		xt_free( node->attribs );
+		node->attribs = attrs;
+		node->attribs[ node->numattribs ] = *attrib;
+	}
+	else
+	{
+		node->attribs = (xt_Attrib*) xt_alloc( sizeof( xt_Attrib ) );
+		node->attribs[ 0 ] = *attrib;
+	}
+	node->numattribs++;
+}
+
+
+/*		P a r s e r		*/
+
+xt_Node* xt_parse_node( char** data )
+{
+	xt_Node* node;
+	xt_Node* C;
+	char* S = *data;
+
+	xt_skip_ws( &S );
+	if( *S != '<' )
+		return NULL;
+
+	node = xt_create_node();
+	node->header = S;
+	S++;
+
+	/* name */
+	xt_skip_ws( &S );
+	node->name = S;
+	if( !xt_skip_until( &S, WHITESPACE ">" ) )
+		goto fnq;
+	node->szname = S - node->name;
+
+	/* attributes */
+	xt_skip_ws( &S );
+	while( *S != '>' && *S != '/' )
+	{
+		xt_Attrib attrib = { S, NULL, 0, 0 };
+
+		if( !xt_skip_until( &S, WHITESPACE "=/>" ) )
+			goto fnq;
+
+		attrib.szname = S - attrib.name;
+		xt_skip_ws( &S );
+
+		/* value */
+		if( *S == '=' )
+		{
+			S++;
+			xt_skip_ws( &S );
+			if( *S != '\"' )
+				goto fnq;
+
+			S++;
+			attrib.value = S;
+			if( !xt_skip_string( &S ) )
+				goto fnq;
+
+			attrib.szvalue = S++ - attrib.value;
+			xt_skip_ws( &S );
+		}
+
+		xt_node_add_attrib( node, &attrib );
+	}
+
+	if( *S == '/' )
+	{
+		if( S[ 1 ] != '>' )
+			goto fnq;
+		S += 2;
+		node->szheader = S - node->header;
+		goto fbe; /* finished before end */
+	}
+
+	S++;
+	node->szheader = S - node->header;
+	node->content = S;
+
+	C = node;
+	xt_skip_ws( &S );
+	while( *S )
+	{
+		if( *S == '<' )
+		{
+			char* RB = S;
+			xt_Node* ch;
+
+			if( S[ 1 ] == '/' )
+			{
+				char* EP;
+				int len;
+
+				S += 2;
+				xt_skip_ws( &S );
+				EP = S;
+				if( !xt_skip_until( &S, WHITESPACE ">" ) )
+					goto fnq;
+
+				len = S - EP;
+				if( len != node->szname || strncmp( node->name, EP, len ) != 0 )
+				{
+					*data = RB;
+					goto fnq;
+				}
+
+				node->szcontent = RB - node->content;
+				S++;
+				break;
+			}
+
+			ch = xt_parse_node( &S );
+			if( ch )
+			{
+				ch->parent = node;
+				if( C == node )	C->firstchild = ch;
+				else			C->sibling = ch;
+				node->numchildren++;
+				C = ch;
+				continue;
+			}
+		}
+		S++;
+	}
+
+fbe:
+	*data = S;
+	return node;
+
+	/* free and quit */
+fnq:
+	xt_destroy_node( node );
+	return NULL;
+}
+
+xt_Node* xt_parse( const char* data )
+{
+	xt_Node* root;
+	char* S = (char*) data;
+
+	xt_skip_ws( &S );
+	xt_skip_hint( &S );
+	xt_skip_ws( &S );
+
+	root = xt_parse_node( &S );
+
+	return root;
+}
+
+
+xt_Node* xt_find_child( xt_Node* node, const char* name )
+{
+	xt_Node* ch = node->firstchild;
+	while( ch )
+	{
+		if( strncmp( ch->name, name, ch->szname ) == 0 )
+			return ch;
+		ch = ch->sibling;
+	}
+	return NULL;
+}
+
+xt_Attrib* xt_find_attrib( xt_Node* node, const char* name )
+{
+	xt_Attrib* p = node->attribs, * pend = node->attribs + node->numattribs;
+	while( p < pend )
+	{
+		if( strncmp( p->name, name, p->szname ) == 0 )
+			return p;
+		p++;
+	}
+	return NULL;
+}
+
