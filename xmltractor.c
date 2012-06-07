@@ -7,15 +7,18 @@
 */
 
 #include <string.h>
+#include <malloc.h>
 
 #include "xmltractor.h"
 
 
+#define xt_alloc malloc
+#define xt_free free
 
 #define WHITESPACE " \t\n\r"
 
 
-/*		S t r i n g   h a n d l i n g		*/
+/*  S t r i n g   h a n d l i n g  */
 
 void xt_skip_ws( char** data )
 {
@@ -81,7 +84,7 @@ void xt_skip_hint( char** data )
 }
 
 
-/*		N o d e		*/
+/*  N o d e  */
 
 xt_Node* xt_create_node()
 {
@@ -129,7 +132,7 @@ void xt_node_add_attrib( xt_Node* node, xt_Attrib* attrib )
 }
 
 
-/*		P a r s e r		*/
+/*  P a r s e r  */
 
 xt_Node* xt_parse_node( char** data )
 {
@@ -267,6 +270,8 @@ xt_Node* xt_parse( const char* data )
 	return root;
 }
 
+
+/*  U t i l i t i e s  */
 
 xt_Node* xt_find_child( xt_Node* node, const char* name )
 {

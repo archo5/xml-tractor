@@ -13,13 +13,6 @@ extern "C"{
 #endif
 
 
-#include <malloc.h>
-
-
-#define xt_alloc malloc
-#define xt_free free
-
-
 typedef struct xt_Attrib xt_Attrib;
 typedef struct xt_Node xt_Node;
 
