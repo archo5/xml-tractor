@@ -1,9 +1,9 @@
 
 /*
-	XML Tractor [v1.0]
+	XML Tractor [v1.01]
 	- goes through all that shit so you don't have to
-	Copyright © 2012 Arvîds Kokins
-	More info on http://code.google.com/p/xml-tractor/
+	Copyright Â© 2012-2017 ArvÄ«ds Kokins
+	More info on https://github.com/snake5/xml-tractor/
 */
 
 #pragma once

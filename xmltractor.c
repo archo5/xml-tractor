@@ -1,9 +1,9 @@
 
 /*
-	XML Tractor [v1.0]
+	XML Tractor [v1.01]
 	- goes through all that shit so you don't have to
-	Copyright © 2012 Arvîds Kokins
-	More info on http://code.google.com/p/xml-tractor/
+	Copyright Â© 2012-2017 ArvÄ«ds Kokins
+	More info on https://github.com/snake5/xml-tractor/
 */
 
 #include <string.h>
@@ -12,8 +12,12 @@
 #include "xmltractor.h"
 
 
-#define xt_alloc malloc
-#define xt_free free
+#ifndef xt_alloc
+#  define xt_alloc malloc
+#endif
+#ifndef xt_free
+#  define xt_free free
+#endif
 
 #define WHITESPACE " \t\n\r"
 
@@ -45,12 +49,12 @@ int xt_skip_until( char** data, char* what )
 	}
 }
 
-int xt_skip_string( char** data )
+int xt_skip_string( char** data, char qch )
 {
 	char* S = *data;
 	while( *S )
 	{
-		if( *S == '\"' )
+		if( *S == qch )
 		{
 			/* backtrack for backslashes */
 			int bs = 0;
@@ -151,7 +155,7 @@ xt_Node* xt_parse_node( char** data )
 	/* name */
 	xt_skip_ws( &S );
 	node->name = S;
-	if( !xt_skip_until( &S, WHITESPACE ">" ) )
+	if( !xt_skip_until( &S, WHITESPACE "/>" ) )
 		goto fnq;
 	node->szname = S - node->name;
 
@@ -159,7 +163,8 @@ xt_Node* xt_parse_node( char** data )
 	xt_skip_ws( &S );
 	while( *S != '>' && *S != '/' )
 	{
-		xt_Attrib attrib = { S, NULL, 0, 0 };
+		xt_Attrib attrib = { 0 };
+		attrib.name = S;
 
 		if( !xt_skip_until( &S, WHITESPACE "=/>" ) )
 			goto fnq;
@@ -172,13 +177,15 @@ xt_Node* xt_parse_node( char** data )
 		{
 			S++;
 			xt_skip_ws( &S );
-			if( *S != '\"' )
-				goto fnq;
-
-			S++;
-			attrib.value = S;
-			if( !xt_skip_string( &S ) )
-				goto fnq;
+			if( *S == '\"' || *S == '\'' )
+			{
+				char qch = *S;
+				S++;
+				attrib.value = S;
+				if( !xt_skip_string( &S, qch ) )
+					goto fnq;
+			}
+			else goto fnq;
 
 			attrib.szvalue = S++ - attrib.value;
 			xt_skip_ws( &S );
