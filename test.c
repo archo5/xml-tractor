@@ -245,6 +245,14 @@ int main()
 		EL( "a" ); CONTENT( "" ); HEADER( "<a/>" ); ATTRNUM( 0 ); CHNUM( 0 ); NOCH NOATTR
 	FREE();
 	
+	PARSE( "<a><!-- comment --><b></b></a>" );
+		EL( "a" ); CONTENT( "<!-- comment --><b></b>" ); ATTRNUM( 0 ); CHNUM( 1 ); NOATTR
+		PUSH
+			EL( "b" ); CONTENT( "" ); ATTRNUM( 0 ); CHNUM( 0 ); NOCH NOATTR
+			END
+		POP
+	FREE();
+	
 	puts( "-- success --" );
 	return 0;
 }

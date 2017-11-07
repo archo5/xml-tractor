@@ -30,6 +30,36 @@ void xt_skip_ws( char** data )
 		(*data)++;
 }
 
+void xt_skip_wsc( char** data )
+{
+	for(;;)
+	{
+		char* p = *data;
+		if( *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r' && *p != '<' )
+			break;
+		if( *p == '<' )
+		{
+			if( p[1] != '!' || p[2] != '-' || p[3] != '-' )
+				return;
+			p += 4;
+			for(;;)
+			{
+				if( *p == '\0' )
+					break;
+				if( p[0] == '-' && p[1] == '-' && p[2] == '>' )
+				{
+					p += 3;
+					break;
+				}
+				p++;
+			}
+			*data = p;
+		}
+		else
+			(*data)++;
+	}
+}
+
 int xt_skip_until( char** data, char* what )
 {
 	for(;;)
@@ -144,7 +174,7 @@ xt_Node* xt_parse_node( char** data )
 	xt_Node* C;
 	char* S = *data;
 
-	xt_skip_ws( &S );
+	xt_skip_wsc( &S );
 	if( *S != '<' )
 		return NULL;
 
@@ -208,7 +238,7 @@ xt_Node* xt_parse_node( char** data )
 	node->content = S;
 
 	C = node;
-	xt_skip_ws( &S );
+	xt_skip_wsc( &S );
 	while( *S )
 	{
 		if( *S == '<' )
@@ -267,10 +297,18 @@ xt_Node* xt_parse( const char* data )
 {
 	xt_Node* root;
 	char* S = (char*) data;
+	
+	if( (unsigned char) S[0] == 0xEF &&
+		(unsigned char) S[1] == 0xBB &&
+		(unsigned char) S[2] == 0xBF )
+	{
+		/* skip UTF-8 BOM */
+		S += 3;
+	}
 
-	xt_skip_ws( &S );
+	xt_skip_wsc( &S );
 	xt_skip_hint( &S );
-	xt_skip_ws( &S );
+	xt_skip_wsc( &S );
 
 	root = xt_parse_node( &S );
 
